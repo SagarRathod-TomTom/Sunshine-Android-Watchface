@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-package com.sagarrathod.sunshine_watchface;
+package com.example.android.sunshine.app;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -33,6 +36,7 @@ import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import java.lang.ref.WeakReference;
@@ -92,9 +96,12 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         Paint mBackgroundPaint;
         Paint mTextPaint, mAmPmTextPaint;
         Paint mDatePaint;
+        Paint mWeatherMessagePaint,mMaxTemperaturePaint, mMinTemperaturePaint;
         boolean mAmbient;
         Calendar mCalendar;
         float mXCenter,mYCenter;
+        String weatherMessage = "Scattered Clouds";
+        private WeatherData mWeatherData = WeatherData.getInstance();
 
         SimpleDateFormat mModeInteractiveTimeFormat = new SimpleDateFormat("hh:mm:ss");
         SimpleDateFormat mModeAmbientTimeFormat = new SimpleDateFormat("hh:mm");
@@ -108,8 +115,9 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 invalidate();
             }
         };
-        float mXOffset;
-        float mYOffset;
+
+        float mMaxTemperature = 45, mMinTemperature = 22;
+        boolean isMetric = false;
 
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
@@ -128,16 +136,23 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     .setAcceptsTapEvents(true)
                     .build());
             Resources resources = SunshineWatchFace.this.getResources();
-            mYOffset = resources.getDimension(R.dimen.digital_y_offset);
+
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.background));
+            mBackgroundPaint.setColor(resources.getColor(com.example.android.sunshine.app.R.color.background));
 
-            mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
-            mAmPmTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
-            mDatePaint = createTextPaint(resources.getColor(R.color.digital_text_date));
+            int digitalTextColor = resources.getColor(com.example.android.sunshine.app.R.color.digital_text);
+
+            mTextPaint = createTextPaint(digitalTextColor);
+            mAmPmTextPaint = createTextPaint(digitalTextColor);
+            mDatePaint = createTextPaint(digitalTextColor);
+            mWeatherMessagePaint = createTextPaint(digitalTextColor);
+
+            mMaxTemperaturePaint = createTextPaint(resources.getColor(R.color.digital_max_temperature));
+            mMinTemperaturePaint = createTextPaint(resources.getColor(R.color.digital_text_date));
 
             mCalendar = Calendar.getInstance();
+
         }
 
         @Override
@@ -197,22 +212,32 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             // Load resources that have alternate values for round watches.
             Resources resources = SunshineWatchFace.this.getResources();
             boolean isRound = insets.isRound();
-            mXOffset = resources.getDimension(isRound
-                    ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
+
             float textSize = resources.getDimension(isRound
-                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
+                    ? com.example.android.sunshine.app.R.dimen.digital_text_size_round :
+                    com.example.android.sunshine.app.R.dimen.digital_text_size);
 
             mTextPaint.setTextSize(textSize);
 
             textSize = resources.getDimension(isRound
-            ? R.dimen.digital_date_text_size_round : R.dimen.digital_date_text_size);
+            ? com.example.android.sunshine.app.R.dimen.digital_date_text_size_round : com.example.android.sunshine.app.R.dimen.digital_date_text_size);
 
             mDatePaint.setTextSize(textSize);
+            mWeatherMessagePaint.setTextSize(textSize);
 
             textSize = resources.getDimension(isRound
-            ? R.dimen.digital_ap_pm_text_size_round : R.dimen.digital_ap_pm_text_size);
+            ? com.example.android.sunshine.app.R.dimen.digital_ap_pm_text_size_round :
+                    com.example.android.sunshine.app.R.dimen.digital_ap_pm_text_size);
 
             mAmPmTextPaint.setTextSize(textSize);
+
+            textSize = resources.getDimension(isRound ?
+                    R.dimen.digital_temperature_text_size_round :
+                    R.dimen.digital_temperature_text_size);
+
+            mMaxTemperaturePaint.setTextSize(textSize);
+            mMinTemperaturePaint.setTextSize(textSize);
+
         }
 
         @Override
@@ -234,6 +259,10 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
                     mTextPaint.setAntiAlias(!inAmbientMode);
+                    mAmPmTextPaint.setAntiAlias(!inAmbientMode);
+                    mMinTemperaturePaint.setAntiAlias(!inAmbientMode);
+                    mMaxTemperaturePaint.setAntiAlias(!inAmbientMode);
+                    mWeatherMessagePaint.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
@@ -241,29 +270,6 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             // Whether the timer should be running depends on whether we're visible (as well as
             // whether we're in ambient mode), so we may need to start or stop the timer.
             updateTimer();
-        }
-
-        /**
-         * Captures tap event (and tap type) and toggles the background color if the user finishes
-         * a tap.
-         */
-        @Override
-        public void onTapCommand(int tapType, int x, int y, long eventTime) {
-            switch (tapType) {
-                case TAP_TYPE_TOUCH:
-                    // The user has started touching the screen.
-                    break;
-                case TAP_TYPE_TOUCH_CANCEL:
-                    // The user has started a different gesture or otherwise cancelled the tap.
-                    break;
-                case TAP_TYPE_TAP:
-                    // The user has completed the tap gesture.
-                    // TODO: Add code to handle the tap gesture.
-                    Toast.makeText(getApplicationContext(), R.string.message, Toast.LENGTH_SHORT)
-                            .show();
-                    break;
-            }
-            invalidate();
         }
 
         @Override
@@ -287,15 +293,73 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             String amOrPm = mAMorPMFormat.format(date);
             String day =  mDateFormat.format(date);
 
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
-            canvas.drawText(amOrPm, mTextPaint.measureText(text) + 30, mYOffset, mAmPmTextPaint);
-            canvas.drawText(day, mXOffset + 5, mYOffset + 50, mDatePaint);
-
+            /** find the center */
             mXCenter = bounds.exactCenterX();
             mYCenter = bounds.exactCenterY();
 
-            float lineLength = 30;
-            canvas.drawLine(mXCenter - lineLength, mYCenter - 15, mXCenter + lineLength, mYCenter - 15, mTextPaint);
+            /** draw a line at the center */
+            float lineLength = 20;
+            canvas.drawLine(mXCenter - lineLength, mYCenter, mXCenter + lineLength, mYCenter, mTextPaint);
+
+            /** measure the time width and draw half way left from mXCenter */
+            float textWidth = mTextPaint.measureText(text);
+            float halfWay = textWidth / 2;
+
+            float timeX = mXCenter - halfWay;
+
+            /** to draw time 45% up from mYCenter */
+            float timeY = mYCenter - (0.30f * mYCenter);
+            canvas.drawText(text, timeX, timeY, mTextPaint);
+
+            int space = 3;
+            canvas.drawText(amOrPm, timeX + textWidth + space, timeY, mAmPmTextPaint);
+
+            /** measure the date width and draw half way left from mXCenter */
+            textWidth = mDatePaint.measureText(day);
+            halfWay = textWidth / 2;
+            /** draw date 80% up from mYCenter */
+            canvas.drawText(day, mXCenter - halfWay, 0.90f * mYCenter, mDatePaint);
+
+
+            float iconY = mYCenter - 10;
+            float componentWidth = 0;
+            int textSpaceYFromCenter = 65;
+            float spaceX = 45;
+            /** if Watch is in interactive mode, draw weather icon, else draw weather message */
+            if(!isInAmbientMode()) {
+                Bitmap bitmap = mWeatherData.getWeatherImage();
+                if(bitmap != null) {
+                    Bitmap icon = Bitmap.createScaledBitmap(bitmap, 100, 100, true);
+                    componentWidth = icon.getWidth();
+                    canvas.drawBitmap(icon, 0.25f * mXCenter, iconY, mWeatherMessagePaint);
+                }
+            }else{
+                componentWidth = 0;
+                spaceX = mXCenter - (0.40f * mXCenter);
+            }
+
+            /** draw maximum and minimum temperature. */
+            String maxTemp = mWeatherData.getMaxTemperature();
+            if(maxTemp != null) {
+                canvas.drawText(maxTemp, componentWidth + spaceX, iconY + textSpaceYFromCenter,
+                        mMaxTemperaturePaint);
+            }
+
+            String minTemp = mWeatherData.getMinTemperature();
+            if(minTemp != null) {
+                canvas.drawText(minTemp, componentWidth + mMinTemperaturePaint.measureText(maxTemp) + spaceX + 5,
+                        iconY + textSpaceYFromCenter, mMinTemperaturePaint);
+            }
+
+            weatherMessage = mWeatherData.getWeatherCondition();
+            if(weatherMessage != null) {
+                float weatherMessageWidth = mWeatherMessagePaint.measureText(weatherMessage);
+                halfWay = weatherMessageWidth / 2;
+                float spaceY = 1.65f * mYCenter;
+                canvas.drawText(weatherMessage, mXCenter - halfWay, spaceY,
+                        mWeatherMessagePaint);
+            }
+
         }
 
         /**

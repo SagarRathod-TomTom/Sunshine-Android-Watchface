@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-<color name="background">#03a9f4</color>
-<color name="digital_text">#ffffff</color>
-    <color name="digital_text_date">#0386b3</color>
+    <color name="background">#03a9f4</color>
+    <color name="digital_text">#ffffff</color>
+    <color name="digital_text_date">#0184b1</color>
+    <color name="digital_max_temperature">#f2e205</color>
 </resources>

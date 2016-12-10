@@ -236,4 +236,7 @@
     <!-- For Google Places API Attributions -->
     <string name="attribution_text">Powered by Google</string>
 
+    //for syncing up latest weather data
+    <string name="sync_watchface_date" translatable="false">sync_watchface_date</string>
+
 </resources>

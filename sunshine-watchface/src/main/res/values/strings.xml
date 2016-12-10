@@ -1,5 +1,7 @@
-<resources>
+<resources xmlns:xliff="http://schemas.android.com/tools">
     <string name="app_name">Sunshine-Watchface</string>
     <string name="message">Watch face tapped</string>
     <string name="my_digital_name">Sunshine</string>
+
+
 </resources>

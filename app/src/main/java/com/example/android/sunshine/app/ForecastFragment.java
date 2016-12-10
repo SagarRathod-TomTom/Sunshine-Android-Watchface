@@ -17,15 +17,24 @@ package com.example.android.sunshine.app;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.Dialog;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.AppBarLayout;
+import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
@@ -47,11 +56,24 @@ import android.widget.TextView;
 
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
+
+import java.io.ByteArrayOutputStream;
 
 /**
  * Encapsulates fetching the forecast and displaying it as a {@link android.support.v7.widget.RecyclerView} layout.
  */
-public class ForecastFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor>, SharedPreferences.OnSharedPreferenceChangeListener {
+public class ForecastFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor>,
+        SharedPreferences.OnSharedPreferenceChangeListener,
+        GoogleApiClient.ConnectionCallbacks {
+
     public static final String LOG_TAG = ForecastFragment.class.getSimpleName();
     private ForecastAdapter mForecastAdapter;
     private RecyclerView mRecyclerView;
@@ -61,6 +83,11 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     private long mInitialSelectedDate = -1;
 
     private static final String SELECTED_KEY = "selected_position";
+
+    private boolean isGoogleApiConnected = false;
+
+    private MainActivity mActivity;
+    private GoogleApiClient mGoogleApiClient;
 
     private static final int FORECAST_LOADER = 0;
     // For the forecast view we're showing only a small subset of the stored data.
@@ -116,6 +143,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         // Add this line in order for this fragment to handle menu events.
         setHasOptionsMenu(true);
     }
+
 
     @Override
     public void onResume() {
@@ -191,7 +219,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
                 String locationSetting = Utility.getPreferredLocation(getActivity());
                 ((Callback) getActivity())
                         .onItemSelected(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(
-                                        locationSetting, date),
+                                locationSetting, date),
                                 vh
                         );
             }
@@ -219,7 +247,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
             }
         }
 
-        final AppBarLayout appbarView = (AppBarLayout)rootView.findViewById(R.id.appbar);
+        final AppBarLayout appbarView = (AppBarLayout) rootView.findViewById(R.id.appbar);
         if (null != appbarView) {
             ViewCompat.setElevation(appbarView, 0);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -256,8 +284,11 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         // We hold for transition here just in-case the activity
         // needs to be re-created. In a standard return transition,
         // this doesn't actually make a difference.
-        if ( mHoldForTransition ) {
-            getActivity().supportPostponeEnterTransition();
+        mActivity = (MainActivity) getActivity();
+        mGoogleApiClient = mActivity.getGoogleApiClient();
+
+        if (mHoldForTransition) {
+            mActivity.supportPostponeEnterTransition();
         }
         getLoaderManager().initLoader(FORECAST_LOADER, null, this);
         super.onActivityCreated(savedInstanceState);
@@ -328,7 +359,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
         mForecastAdapter.swapCursor(data);
         updateEmptyView();
-        if ( data.getCount() == 0 ) {
+        if (data.getCount() == 0) {
             getActivity().supportStartPostponedEnterTransition();
         } else {
             mRecyclerView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
@@ -344,9 +375,9 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
                             Cursor data = mForecastAdapter.getCursor();
                             int count = data.getCount();
                             int dateColumn = data.getColumnIndex(WeatherContract.WeatherEntry.COLUMN_DATE);
-                            for ( int i = 0; i < count; i++ ) {
+                            for (int i = 0; i < count; i++) {
                                 data.moveToPosition(i);
-                                if ( data.getLong(dateColumn) == mInitialSelectedDate ) {
+                                if (data.getLong(dateColumn) == mInitialSelectedDate) {
                                     position = i;
                                     break;
                                 }
@@ -360,7 +391,7 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
                         if (null != vh && mAutoSelectView) {
                             mForecastAdapter.selectView(vh);
                         }
-                        if ( mHoldForTransition ) {
+                        if (mHoldForTransition) {
                             getActivity().supportStartPostponedEnterTransition();
                         }
                         return true;
@@ -371,8 +402,6 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         }
 
     }
-
-
 
     @Override
     public void onDestroy() {
@@ -403,9 +432,9 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
         use to determine why they aren't seeing weather.
      */
     private void updateEmptyView() {
-        if ( mForecastAdapter.getItemCount() == 0 ) {
+        if (mForecastAdapter.getItemCount() == 0) {
             TextView tv = (TextView) getView().findViewById(R.id.recyclerview_forecast_empty);
-            if ( null != tv ) {
+            if (null != tv) {
                 // if cursor is empty, why? do we have an invalid location
                 int message = R.string.empty_forecast_list;
                 @SunshineSyncAdapter.LocationStatus int location = Utility.getLocationStatus(getActivity());
@@ -433,6 +462,88 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (key.equals(getString(R.string.pref_location_status_key))) {
             updateEmptyView();
+        }
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        isGoogleApiConnected = true;
+        syncWatchFace();
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        isGoogleApiConnected = false;
+    }
+
+    private void syncWatchFace() {
+        Cursor cursor = mForecastAdapter.getCursor();
+        if (cursor != null && cursor.getCount() > 0) {
+            cursor.moveToFirst();
+
+            Bundle bundle = new Bundle();
+
+            // Read high temperature from cursor
+            double high = cursor.getDouble(COL_WEATHER_MAX_TEMP);
+            String highString = Utility.formatTemperature(mActivity, high);
+            bundle.putString("max_temperature", highString);
+
+            // Read low temperature from cursor
+            double low = cursor.getDouble(COL_WEATHER_MIN_TEMP);
+            String lowString = Utility.formatTemperature(mActivity, low);
+            bundle.putString("min_temperature", lowString);
+
+            int weatherId = cursor.getInt(COL_WEATHER_CONDITION_ID);
+            // Read weather forecast from cursor
+            String description = Utility.getStringForWeatherCondition(mActivity, weatherId);
+            bundle.putString("weather_condition", description);
+
+            int defaultImage = Utility.getIconResourceForWeatherCondition(weatherId);
+            bundle.putInt("weather_image", defaultImage);
+
+            new SyncWatchFaceAsyncTask().execute(bundle);
+        }
+    }
+
+    class SyncWatchFaceAsyncTask extends AsyncTask<Bundle, Void, Void> {
+
+        private Asset createAssetFromBitmap(Bitmap bitmap) {
+            final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+            return Asset.createFromBytes(byteStream.toByteArray());
+        }
+
+        @Override
+        protected Void doInBackground(Bundle... params) {
+
+            PutDataMapRequest putDataMapRequest = PutDataMapRequest.create("/sunshine");
+            DataMap dataMap = putDataMapRequest.getDataMap();
+
+            dataMap.putDouble("max_temperature", params[0].getDouble("max_temperature"));
+            dataMap.putDouble("min_temperature", params[0].getDouble("min_temperature"));
+            dataMap.putString("weather_condition", params[0].getString("weather_condition"));
+
+            int imageResource = params[0].getInt("weather_image");
+
+            Bitmap bitmap = BitmapFactory.decodeResource(getResources(), imageResource);
+            Asset asset = createAssetFromBitmap(bitmap);
+            dataMap.putAsset("weather_image", asset);
+
+            PutDataRequest putDataRequest = putDataMapRequest.asPutDataRequest();
+            Wearable.DataApi.putDataItem(mGoogleApiClient, putDataRequest)
+                    .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                        @Override
+                        public void onResult(@NonNull DataApi.DataItemResult dataItemResult) {
+                            if(dataItemResult.getStatus().isSuccess()){
+                                Log.d("Success:", "Sending Successful.");
+                            }
+                            else {
+                                Log.d("Failed:", "Sending Failed.");
+                            }
+                        }
+                    });
+            Log.d(SyncWatchFaceAsyncTask.class.getSimpleName(),dataMap.toString());
+            return null;
         }
     }
 }
