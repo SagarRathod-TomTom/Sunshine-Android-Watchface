@@ -519,8 +519,8 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
             PutDataMapRequest putDataMapRequest = PutDataMapRequest.create("/sunshine");
             DataMap dataMap = putDataMapRequest.getDataMap();
 
-            dataMap.putDouble("max_temperature", params[0].getDouble("max_temperature"));
-            dataMap.putDouble("min_temperature", params[0].getDouble("min_temperature"));
+            dataMap.putString("max_temperature", params[0].getString("max_temperature"));
+            dataMap.putString("min_temperature", params[0].getString("min_temperature"));
             dataMap.putString("weather_condition", params[0].getString("weather_condition"));
 
             int imageResource = params[0].getInt("weather_image");

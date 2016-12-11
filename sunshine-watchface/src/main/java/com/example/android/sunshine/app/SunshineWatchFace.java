@@ -331,7 +331,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 if(bitmap != null) {
                     Bitmap icon = Bitmap.createScaledBitmap(bitmap, 100, 100, true);
                     componentWidth = icon.getWidth();
-                    canvas.drawBitmap(icon, 0.25f * mXCenter, iconY, mWeatherMessagePaint);
+                    canvas.drawBitmap(icon, 0.30f * mXCenter, iconY, mWeatherMessagePaint);
                 }
             }else{
                 componentWidth = 0;
