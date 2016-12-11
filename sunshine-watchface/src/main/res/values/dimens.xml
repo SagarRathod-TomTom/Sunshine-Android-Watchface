@@ -11,7 +11,12 @@
     <dimen name="digital_date_text_size">12dp</dimen>
     <dimen name="digital_date_text_size_round">15dp</dimen>
 
-    <dimen name="digital_x_offset">15dp</dimen>
-    <dimen name="digital_x_offset_round">25dp</dimen>
-    <dimen name="digital_y_offset">90dp</dimen>
+    <dimen name="digital_x_offset">30dp</dimen>
+    <dimen name="digital_x_offset_round">45dp</dimen>
+
+    <dimen name="digital_y_offset">0dp</dimen>
+    <dimen name="digital_y_offset_round">5dp</dimen>
+
+    <dimen name="weather_description_y_offset">64dp</dimen>
+    <dimen name="weather_description_y_offset_round">70dp</dimen>
 </resources>

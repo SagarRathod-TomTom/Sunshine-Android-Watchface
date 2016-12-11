@@ -118,12 +118,14 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
 
         float mMaxTemperature = 45, mMinTemperature = 22;
         boolean isMetric = false;
-
+        float spaceX;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
          */
         boolean mLowBitAmbient;
+        Resources resources;
+        boolean isRound;
 
         @Override
         public void onCreate(SurfaceHolder holder) {
@@ -210,8 +212,8 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             super.onApplyWindowInsets(insets);
 
             // Load resources that have alternate values for round watches.
-            Resources resources = SunshineWatchFace.this.getResources();
-            boolean isRound = insets.isRound();
+            resources = SunshineWatchFace.this.getResources();
+            isRound = insets.isRound();
 
             float textSize = resources.getDimension(isRound
                     ? com.example.android.sunshine.app.R.dimen.digital_text_size_round :
@@ -321,17 +323,23 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             canvas.drawText(day, mXCenter - halfWay, 0.90f * mYCenter, mDatePaint);
 
 
-            float iconY = mYCenter - 10;
+            float spaceY = resources.getDimension(isRound ?
+                R.dimen.digital_y_offset_round : R.dimen.digital_y_offset);
+
+            float iconY = mYCenter + spaceY;
             float componentWidth = 0;
-            int textSpaceYFromCenter = 65;
-            float spaceX = 45;
+            int textSpaceYFromCenter = 70;
+
+            spaceX = resources.getDimension(isRound ? R.dimen.digital_x_offset_round:
+                    R.dimen.digital_x_offset);
+
             /** if Watch is in interactive mode, draw weather icon, else draw weather message */
             if(!isInAmbientMode()) {
                 Bitmap bitmap = mWeatherData.getWeatherImage();
                 if(bitmap != null) {
                     Bitmap icon = Bitmap.createScaledBitmap(bitmap, 100, 100, true);
                     componentWidth = icon.getWidth();
-                    canvas.drawBitmap(icon, 0.30f * mXCenter, iconY, mWeatherMessagePaint);
+                    canvas.drawBitmap(icon, 0.35f * mXCenter, iconY, mWeatherMessagePaint);
                 }
             }else{
                 componentWidth = 0;
@@ -355,8 +363,9 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             if(weatherMessage != null) {
                 float weatherMessageWidth = mWeatherMessagePaint.measureText(weatherMessage);
                 halfWay = weatherMessageWidth / 2;
-                float spaceY = 1.65f * mYCenter;
-                canvas.drawText(weatherMessage, mXCenter - halfWay, spaceY,
+                float ySpace = mYCenter + resources.getDimension(isRound ?
+                R.dimen.weather_description_y_offset_round : R.dimen.weather_description_y_offset);
+                canvas.drawText(weatherMessage, mXCenter - halfWay, ySpace,
                         mWeatherMessagePaint);
             }
 
