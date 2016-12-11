@@ -22,6 +22,11 @@ import com.google.android.gms.wearable.WearableListenerService;
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @author Sagar Rathod
+ *
+ * Listens sunshine weather updates from handheld device.
+ */
 public class WeatherListenerService extends WearableListenerService implements
 GoogleApiClient.OnConnectionFailedListener, GoogleApiClient.ConnectionCallbacks{
 

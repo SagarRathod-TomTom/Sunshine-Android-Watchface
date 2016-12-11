@@ -49,6 +49,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
  * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
+ *
+ * Displays sunshine weather updates on watchface.
+ *
+ * @author Sagar Rathod
  */
 public class SunshineWatchFace extends CanvasWatchFaceService {
     private static final Typeface NORMAL_TYPEFACE =
